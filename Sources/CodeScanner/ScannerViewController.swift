@@ -22,6 +22,10 @@ extension CodeScannerView {
         var lastTime = Date(timeIntervalSince1970: 0)
         private let showViewfinder: Bool
         
+        var captureSession: AVCaptureSession?
+        var previewLayer: AVCaptureVideoPreviewLayer!
+        private let metadataOutput = AVCaptureMetadataOutput()
+        
         let fallbackVideoCaptureDevice = AVCaptureDevice.default(for: .video)
         
         private var isGalleryShowing: Bool = false {
@@ -145,8 +149,8 @@ extension CodeScannerView {
         
         #else
         
-        var captureSession: AVCaptureSession?
-        var previewLayer: AVCaptureVideoPreviewLayer!
+//        var captureSession: AVCaptureSession?
+//        var previewLayer: AVCaptureVideoPreviewLayer!
 
         private lazy var viewFinder: UIImageView? = {
             guard let image = UIImage(named: "viewfinder", in: .module, with: nil) else {
@@ -177,12 +181,21 @@ extension CodeScannerView {
             button.translatesAutoresizingMaskIntoConstraints = false
             return button
         }()
-
+        
+        private func setupBoundingBox() {
+            boundingBox.frame = view.layer.bounds
+            boundingBox.strokeColor = UIColor.green.cgColor
+            boundingBox.lineWidth = 4.0
+            boundingBox.fillColor = UIColor.clear.cgColor
+            
+            view.layer.addSublayer(boundingBox)
+        }
         override public func viewDidLoad() {
             super.viewDidLoad()
             self.addOrientationDidChangeObserver()
             self.setBackgroundColor()
             self.handleCameraPermission()
+            self.setupBoundingBox()
         }
 
         override public func viewWillLayoutSubviews() {
@@ -216,7 +229,14 @@ extension CodeScannerView {
 
             setupSession()
         }
-      
+        
+        var detectArea: UIView!{
+            didSet {
+                detectArea.layer.borderWidth = 3.0
+                detectArea.layer.borderColor = UIColor.red.cgColor
+            }
+        }
+        
         private func setupSession() {
             guard let captureSession = captureSession else {
                 return
@@ -230,7 +250,46 @@ extension CodeScannerView {
             previewLayer.videoGravity = .resizeAspectFill
             view.layer.addSublayer(previewLayer)
             addviewfinder()
+            
+            //MARK: 読み取り範囲の制限
+            detectArea = UIView()
+//            let size = 240
+//            let screenWidth = view.frame.size.width
+//            let screenHeight = view.frame.size.height
+//            let xPos = (CGFloat(screenWidth) / CGFloat(2)) - (CGFloat(size) / CGFloat(2))
+//            let yPos = (CGFloat(screenHeight) / CGFloat(2)) - (CGFloat(size) / CGFloat(2))
+//            let scanRect = CGRect(x: Int(xPos), y: Int(yPos), width: size, height: size)
+            
+//            let screenWidth = UIScreen.main.bounds.width
+//            let screenHeight = UIScreen.main.bounds.height
+//            let scanRect = CGRect(x: screenWidth/4, y: screenHeight/4, width: screenWidth/2, height: screenHeight/2)
+//           
+            // 読み取り範囲（0 ~ 1.0の範囲で指定）
+                let x: CGFloat = 0.1
+                let y: CGFloat = 0.4
+                let width: CGFloat = 0.8
+                let height: CGFloat = 0.2
+            
+            // 解析範囲を表すボーダービューを作成する
+            let borderView = UIView(frame: CGRectMake(x * self.view.bounds.width, 0.1 * self.view.bounds.height, 0.8 * self.view.bounds.width, 0.8 * self.view.bounds.height))
+            borderView.layer.borderWidth = 2
+            borderView.layer.borderColor = UIColor.red.cgColor
+//            loadAreaView.frame = CGRect(x: (Device.width - cameraFrame.frameWidth) / 2, y: (Device.height - cameraFrame.frameHeight) / 2, width: cameraFrame.frameWidth, height: cameraFrame.frameHeight)
+            // どの範囲を解析するか設定する
+            metadataOutput.rectOfInterest = CGRectMake(y, 1-x-width, height, width)
 
+//            detectArea.frame = scanRect
+//            view.addSubview(detectArea) //赤枠
+            view.addSubview(borderView) //赤枠
+            
+            print(self.detectArea.frame)
+            let metadataOutputRectOfInterest = self.previewLayer.metadataOutputRectConverted(fromLayerRect: self.detectArea.frame)
+            print(metadataOutputRectOfInterest)
+//            self.metadataOutput.rectOfInterest = metadataOutputRectOfInterest //読み取り範囲の指定
+            
+            DispatchQueue.main.async {
+                self.setupBoundingBox()
+            }
             reset()
 
             if (captureSession.isRunning == false) {
@@ -286,6 +345,9 @@ extension CodeScannerView {
         }
       
         private func setupCaptureDevice() {
+//            DispatchQueue.main.async {
+//                self.setupBoundingBox()
+//            }
             captureSession = AVCaptureSession()
 
             guard let videoCaptureDevice = parentView.videoCaptureDevice ?? fallbackVideoCaptureDevice else {
@@ -307,7 +369,7 @@ extension CodeScannerView {
                 didFail(reason: .badInput)
                 return
             }
-            let metadataOutput = AVCaptureMetadataOutput()
+//            let metadataOutput = AVCaptureMetadataOutput()
 
             if (captureSession!.canAddOutput(metadataOutput)) {
                 captureSession!.addOutput(metadataOutput)
@@ -448,11 +510,51 @@ extension CodeScannerView {
             self.reset()
             lastTime = Date()
         }
-
+        
+        private var boundingBox = CAShapeLayer()
+        //MARK: 読み取り枠線の追加
+        private func updateBoundingBox(_ points: [CGPoint]) {
+            print("updateBoundingBox")
+            guard let firstPoint = points.first else {
+                return
+            }
+            
+            let path = UIBezierPath()
+            path.move(to: firstPoint)
+            
+            var newPoints = points
+            newPoints.removeFirst()
+            newPoints.append(firstPoint)
+            
+            newPoints.forEach { path.addLine(to: $0) }
+            
+            boundingBox.path = path.cgPath
+            boundingBox.isHidden = false
+        }
+        private var resetTimer: Timer?
+        fileprivate func hideBoundingBox(after: Double) {
+            resetTimer?.invalidate()
+            resetTimer = Timer.scheduledTimer(withTimeInterval: TimeInterval() + after,
+                                              repeats: false) { [weak self] (timer) in
+                self?.boundingBox.isHidden = true }
+        }
+        
         public func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
             if let metadataObject = metadataObjects.first {
                 guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
                 guard let stringValue = readableObject.stringValue else { return }
+                
+//                print("metadataObject.bounds: \(metadataObject.bounds)")
+//                print("readableObject.corners: \(readableObject.corners)")
+                guard let transformedObject = previewLayer.transformedMetadataObject(for: readableObject) as? AVMetadataMachineReadableCodeObject else {
+                    return
+                }
+//                print(transformedObject.corners)
+                DispatchQueue.main.async {
+                    self.updateBoundingBox(transformedObject.corners)
+                    self.hideBoundingBox(after: 0.1)
+                }
+                
                 
                 guard didFinishScanning == false else { return }
                 

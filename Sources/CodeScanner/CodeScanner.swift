@@ -9,6 +9,18 @@
 import AVFoundation
 import SwiftUI
 
+///// iPhoneのディスプレイサイズを定義
+struct Device{
+    static let height = UIScreen.main.bounds.height
+    static let width = UIScreen.main.bounds.width
+}
+
+///// iPhoneのカメラフレームを定義
+struct cameraFrame{
+    static let frameWidth = Device.width * 0.6
+    static let frameHeight = Device.height * 0.3
+}
+
 /// An enum describing the ways CodeScannerView can hit scanning problems.
 public enum ScanError: Error {
     /// The camera could not be accessed.
