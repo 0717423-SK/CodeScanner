@@ -245,21 +245,35 @@ extension CodeScannerView {
             view.layer.addSublayer(previewLayer)
             addviewfinder()
 
-            // 読み取り範囲（0 ~ 1.0の範囲で指定）
-                let x: CGFloat = 0.1
-                let y: CGFloat = 0.4
-                let width: CGFloat = 0.8
-                let height: CGFloat = 0.2
+            //MARK: デモ全画面表示用
+//            let size = 240
+//            let screenWidth = view.frame.size.width
+//            let screenHeight = view.frame.size.height
+//            let xPos = (CGFloat(screenWidth) / CGFloat(2)) - (CGFloat(size) / CGFloat(2))
+//            let yPos = (CGFloat(screenHeight) / CGFloat(2)) - (CGFloat(size) / CGFloat(2))
+//            let scanRect = CGRect(x: Int(xPos), y: Int(yPos), width: size, height: size)
+//            
+//            self.metadataOutput.rectOfInterest = self.previewLayer.metadataOutputRectConverted(fromLayerRect: scanRect)
+//            let v = UIView()
+//            v.layer.borderWidth = 2
+//            v.layer.borderColor = UIColor.red.cgColor
+//            v.frame = scanRect
+//            view.addSubview(v)
             
-            // 解析範囲を表すボーダービューを作成する
+            
+            // 読み取り範囲（0 ~ 1.0の範囲で指定）
+            let x: CGFloat = 0.1
+            let y: CGFloat = 0.4
+            let width: CGFloat = 0.8
+            let height: CGFloat = 0.2
+            
+            //MARK: 解析範囲を表すボーダービューを作成する
             let borderView = UIView(frame: CGRectMake(x * self.view.bounds.width, 0.1 * self.view.bounds.height, 0.8 * self.view.bounds.width, 0.8 * cameraFrame.frameHeight))
             borderView.layer.borderWidth = 2
             borderView.layer.borderColor = UIColor.red.cgColor
             view.addSubview(borderView) //赤枠
 
-//            let metadataOutputRectOfInterest = self.previewLayer.metadataOutputRectConverted(fromLayerRect: self.detectArea.frame)
-           //            self.metadataOutput.rectOfInterest = metadataOutputRectOfInterest //読み取り範囲の指定
-            // どの範囲を解析するか設定する
+            //MARK: どの範囲を解析するか設定する
             metadataOutput.rectOfInterest = CGRectMake(y, 1-x-width, height, width)
                         
             DispatchQueue.main.async {
